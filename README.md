@@ -1,16 +1,18 @@
-# ⚡ Your Project Name
-> A brief description of what your app does and who it's for. 
-> *(e.g., Fast Drop is a lightweight, browser-based app that uses WebRTC for instant, secure, and offline peer-to-peer file sharing directly between devices.)*
+# ⚡ Fast Drop
+
+> A lightweight, browser-based app that uses WebRTC for instant, secure, and offline peer-to-peer file sharing directly between devices.
 
 [![Next.js](https://img.shields.io/badge/Next.js-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![WebRTC](https://img.shields.io/badge/WebRTC-333333?style=for-the-badge&logo=webrtc&logoColor=white)](https://webrtc.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+### 🌐 **[Live Demo: Try Fast Drop Here](https://baroi-ai.github.io/fast-drop/)**
 
 ---
 
 ## 💖 Support the Project
 
-If you find this project helpful, consider buying me a coffee! Your support helps keep development going.
+If you find this project helpful or use it regularly, consider buying me a coffee! Your support helps keep the development going.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/baroi)
 
