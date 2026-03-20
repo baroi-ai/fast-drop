@@ -917,7 +917,6 @@ export default function Home() {
         <div className="flex gap-6 items-center">
           <a
             href="/fast-drop"
-            target="_blank"
             rel="noreferrer"
             className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
           >
