@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "export",
-  basePath: "/fast-drop",
+  //basePath: "/fast-drop",
   images: {
     unoptimized: true,
   },

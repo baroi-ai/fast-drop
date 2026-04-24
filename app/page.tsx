@@ -41,7 +41,6 @@ function FileDropLogic() {
   const [sendQueue, setSendQueue] = useState<QueuedFile[]>([]);
   const [isSending, setIsSending] = useState<boolean>(false);
 
-  // Add this near line 45
   const [copied, setCopied] = useState(false);
 
   const copyInviteLink = () => {
@@ -457,15 +456,6 @@ function FileDropLogic() {
   // UI HELPERS
   // -------------------------------------------------------------
   const isDev = process.env.NODE_ENV === "development";
-  //const baseUrl = isDev
-  // ? "http://192.168.1.2:3000"
-  // : typeof window !== "undefined"
-  //   ? window.location.origin
-  //  : "";
-  //const connectionUrl =
-  // typeof window !== "undefined"
-  //  ? `${baseUrl}${window.location.pathname}?connect=${peerId}`
-  //  : "";
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -493,6 +483,275 @@ function FileDropLogic() {
     (q) => q.status === "done" || q.status === "cancelled",
   );
 
+  // -------------------------------------------------------------
+  // SHARED: TRANSFER STATION PANEL (used by both sides)
+  // -------------------------------------------------------------
+  const TransferStationPanel = () => (
+    <div className="p-6 md:p-8 flex flex-col space-y-6 bg-[#1a1c21] relative">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold text-white">Transfer Station</h3>
+      </div>
+
+      <label className="flex flex-col items-center justify-center w-full min-h-[120px] border-2 border-dashed border-gray-700 rounded-xl cursor-pointer bg-[#111315] hover:bg-gray-800 transition p-6 group shrink-0">
+        <div className="flex flex-col items-center justify-center text-center">
+          <div className="w-10 h-10 mb-3 rounded-full bg-gray-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <svg
+              className="w-5 h-5 text-[#00E585]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+          </div>
+          <p className="text-sm text-gray-400">
+            <span className="font-semibold text-[#00E585]">Click to browse</span>{" "}
+            or drag files here
+          </p>
+        </div>
+        <input
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+      </label>
+
+      <div className="flex-1 flex flex-col space-y-4">
+        <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+          <h4 className="text-md font-bold text-gray-300">Outbox Queue</h4>
+          <div className="space-x-3">
+            {hasFinishedQueueItems && (
+              <button
+                onClick={removeDoneFiles}
+                className="text-xs text-gray-500 hover:text-white transition"
+              >
+                Clear Done
+              </button>
+            )}
+            {hasActiveQueueItems && (
+              <button
+                onClick={cancelAllFiles}
+                className="text-xs text-red-500 hover:text-red-400 transition"
+              >
+                Cancel All
+              </button>
+            )}
+          </div>
+        </div>
+
+        {sendQueue.length === 0 ? (
+          <div className="flex items-center justify-center h-[280px] bg-[#111315]/40 rounded-xl border border-dashed border-gray-800">
+            <p className="text-sm text-gray-600 text-center">
+              No files selected.
+              <br />
+              Queue up files while you wait.
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3 h-[280px] overflow-y-auto custom-scrollbar pr-2">
+            {sendQueue.map((item) => (
+              <li
+                key={item.id}
+                className="p-3 bg-[#111315] rounded-xl border border-gray-800 relative overflow-hidden"
+              >
+                {item.status === "sending" && (
+                  <div
+                    className="absolute top-0 left-0 h-full bg-[#00E585]/10 z-0 transition-all duration-200"
+                    style={{ width: `${item.progress}%` }}
+                  ></div>
+                )}
+                <div className="flex items-center justify-between relative z-10">
+                  <div className="flex flex-col truncate pr-4">
+                    <span
+                      className={`text-sm font-medium truncate ${item.status === "cancelled" ? "text-gray-600 line-through" : "text-white"}`}
+                    >
+                      {item.file.name}
+                    </span>
+                    <span className="text-xs text-gray-500 flex gap-2">
+                      {formatBytes(item.file.size)}
+                      {item.status === "done" && (
+                        <span className="text-[#00E585]">✓ Sent</span>
+                      )}
+                      {item.status === "sending" && (
+                        <span className="text-[#00E585]">{item.progress}%</span>
+                      )}
+                      {item.status === "cancelled" && (
+                        <span className="text-red-500">Cancelled</span>
+                      )}
+                      {item.status === "pending" && (
+                        <span className="text-gray-400">Waiting...</span>
+                      )}
+                    </span>
+                  </div>
+                  {(item.status === "pending" || item.status === "sending") && (
+                    <button
+                      onClick={() => cancelIndividualFile(item.id)}
+                      className="shrink-0 px-2 py-1 text-xs bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition"
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="pt-2 shrink-0">
+        <button
+          onClick={startSendingQueue}
+          disabled={
+            !connection ||
+            isSending ||
+            !sendQueue.some((q) => q.status === "pending")
+          }
+          className="w-full py-4 px-4 bg-[#00E585] hover:bg-[#00C875] disabled:bg-[#111315] disabled:border disabled:border-gray-800 disabled:text-gray-500 text-black font-bold rounded-xl transition-all shadow-lg shadow-[#00E585]/10 disabled:shadow-none"
+        >
+          {!connection
+            ? "Waiting for Connection..."
+            : isSending
+              ? "Processing Queue..."
+              : `Secure Send ${sendQueue.filter((q) => q.status === "pending").length > 0 ? `(${sendQueue.filter((q) => q.status === "pending").length})` : ""}`}
+        </button>
+      </div>
+    </div>
+  );
+
+  // -------------------------------------------------------------
+  // SHARED: RECEIVE INBOX PANEL (used by both sides)
+  // -------------------------------------------------------------
+  const ReceiveInboxPanel = () => (
+    <div className="p-6 md:p-8 flex flex-col space-y-6 bg-[#1e2025]">
+      {activeIncomingFiles.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+            <h4 className="text-md font-bold text-[#00E585]">
+              Incoming Queue ({activeIncomingFiles.length})
+            </h4>
+            <button
+              onClick={cancelAllIncoming}
+              className="text-xs text-red-500 hover:text-red-400 transition font-medium"
+            >
+              Cancel All
+            </button>
+          </div>
+
+          <ul className="space-y-3 max-h-[180px] overflow-y-auto custom-scrollbar pr-2">
+            {activeIncomingFiles.map((file, idx) => {
+              const isReceiving = file.status === "receiving";
+              return (
+                <li
+                  key={idx}
+                  className={`p-4 bg-[#111315] rounded-xl border ${isReceiving ? "border-[#00E585]/50 shadow-[0_0_15px_rgba(0,229,133,0.1)]" : "border-gray-800"} relative overflow-hidden`}
+                >
+                  {isReceiving && (
+                    <div
+                      className="absolute top-0 left-0 h-full bg-[#00E585]/10 z-0 transition-all duration-200"
+                      style={{ width: `${receiveProgress}%` }}
+                    ></div>
+                  )}
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-center mb-1">
+                      <span
+                        className={`text-sm font-medium truncate pr-4 ${isReceiving ? "text-white" : "text-gray-400"}`}
+                      >
+                        {file.name}
+                      </span>
+                      <span className="text-xs text-gray-500 shrink-0">
+                        {formatBytes(file.size)}
+                      </span>
+                    </div>
+                    {isReceiving ? (
+                      <div className="flex items-center gap-3 mt-3">
+                        <div className="w-full bg-gray-800 rounded-full h-1.5">
+                          <div
+                            className="bg-[#00E585] h-1.5 rounded-full transition-all duration-200"
+                            style={{ width: `${receiveProgress}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-mono text-[#00E585] shrink-0">
+                          {receiveProgress}%
+                        </span>
+                        <button
+                          onClick={cancelIncomingTransfer}
+                          className="shrink-0 px-2 py-1 text-xs bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition"
+                        >
+                          Stop
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-600 mt-1 block">
+                        Waiting in line...
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <div className="space-y-4 flex-1 flex flex-col">
+        <div className="flex justify-between items-end border-b border-gray-800 pb-2">
+          <h3 className="text-md font-bold text-white">Received Inbox</h3>
+          {receivedFiles.length > 0 && (
+            <button
+              onClick={handleDownloadAllSequential}
+              disabled={isDownloadingAll}
+              className="text-xs bg-[#00E585] text-black px-3 py-1.5 rounded-lg font-bold hover:bg-[#00C875] transition disabled:opacity-50"
+            >
+              {isDownloadingAll ? "Downloading..." : "Download All"}
+            </button>
+          )}
+        </div>
+
+        {receivedFiles.length === 0 ? (
+          <div className="flex items-center justify-center h-[280px] bg-[#111315]/40 rounded-xl border border-dashed border-gray-800">
+            <p className="text-sm text-gray-500 text-center">
+              No files received yet.
+              <br />
+              Waiting for sender...
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3 h-[280px] overflow-y-auto pr-2 custom-scrollbar">
+            {receivedFiles.map((file, idx) => (
+              <li
+                key={idx}
+                className="flex items-center justify-between p-3 bg-[#111315] rounded-xl border border-gray-800 hover:border-gray-700 transition"
+              >
+                <div className="flex flex-col truncate pr-4">
+                  <span className="text-sm font-medium text-white truncate">
+                    {file.name}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {formatBytes(file.size)}
+                  </span>
+                </div>
+                <a
+                  href={file.url}
+                  download={file.name}
+                  className="shrink-0 px-4 py-2 bg-[#00E585]/10 text-[#00E585] hover:bg-[#00E585] hover:text-black font-semibold text-xs rounded-lg transition-colors"
+                >
+                  Save
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col items-center justify-center p-4 md:p-8 w-full max-w-5xl mx-auto mt-20 space-y-8 pb-32">
       <div className="w-full bg-[#1e2025] border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
@@ -501,11 +760,11 @@ function FileDropLogic() {
           <span className="truncate max-w-2xl">{status}</span>
         </div>
 
-        <div
-          className={`grid grid-cols-1 ${!connectToId ? "md:grid-cols-2 divide-y md:divide-y-0 md:divide-x" : ""} divide-gray-800 min-h-[500px]`}
-        >
-          <div className="p-6 md:p-8 flex flex-col relative bg-[#1e2025]">
-            {!connectToId && (
+        {/* ---- HOST VIEW (no connectToId): QR/pair left, Transfer Station right ---- */}
+        {!connectToId && (
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-800 min-h-[500px]">
+            {/* LEFT: Pair panel */}
+            <div className="p-6 md:p-8 flex flex-col relative bg-[#1e2025]">
               <div className="flex-1 flex flex-col items-center justify-center h-full">
                 {!connection ? (
                   <div className="flex flex-col items-center space-y-6 w-full">
@@ -516,14 +775,11 @@ function FileDropLogic() {
                       Scan this QR code with your mobile device to establish a
                       secure, peer-to-peer connection.
                     </p>
-                    {/* Replace the QR section around line 380 */}
                     {peerId ? (
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-white rounded-2xl shadow-[0_0_40px_rgba(0,229,133,0.15)] transition-all">
                           <QRCodeSVG value={connectionUrl} size={200} />
                         </div>
-
-                        {/* NEW COPY LINK BUTTON */}
                         <button
                           onClick={copyInviteLink}
                           className="flex items-center gap-2 px-5 py-2.5 bg-[#111315] hover:bg-gray-800 text-white rounded-xl transition-all border border-gray-800 text-sm font-bold shadow-lg"
@@ -580,7 +836,6 @@ function FileDropLogic() {
                         transfer files.
                       </p>
                     </div>
-
                     <button
                       onClick={disconnectFromPeer}
                       className="mt-2 px-6 py-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl transition-colors text-sm font-bold shadow-lg shadow-red-500/10"
@@ -590,310 +845,57 @@ function FileDropLogic() {
                   </div>
                 )}
               </div>
-            )}
+            </div>
 
-            {connectToId && (
-              <div className="flex flex-col space-y-6 w-full h-full">
-                {/* --- NEW: RECEIVER CONNECTION STATUS BAR --- */}
-                <div className="flex justify-between items-center bg-[#111315] p-4 rounded-xl border border-gray-800 shadow-sm shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-2 h-2 rounded-full ${connection ? "bg-[#00E585] animate-pulse" : "bg-red-500"}`}
-                    ></div>
-                    <div>
-                      <h2 className="text-white font-bold text-sm">
-                        {connection ? "Connected to Sender" : "Disconnected"}
-                      </h2>
-                      <p className="text-xs text-gray-500 font-mono">
-                        {connection ? "Remote Link Active" : "Tunnel Closed"}
-                      </p>
-                    </div>
-                  </div>
-                  {connection && (
-                    <button
-                      onClick={disconnectFromPeer}
-                      className="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-lg transition-colors text-xs font-bold shadow-lg"
-                    >
-                      Disconnect
-                    </button>
-                  )}
-                </div>
-
-                {activeIncomingFiles.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                      <h4 className="text-md font-bold text-[#00E585]">
-                        Incoming Queue ({activeIncomingFiles.length})
-                      </h4>
-                      <button
-                        onClick={cancelAllIncoming}
-                        className="text-xs text-red-500 hover:text-red-400 transition font-medium"
-                      >
-                        Cancel All
-                      </button>
-                    </div>
-
-                    <ul className="space-y-3 max-h-[180px] overflow-y-auto custom-scrollbar pr-2">
-                      {activeIncomingFiles.map((file, idx) => {
-                        const isReceiving = file.status === "receiving";
-                        return (
-                          <li
-                            key={idx}
-                            className={`p-4 bg-[#111315] rounded-xl border ${isReceiving ? "border-[#00E585]/50 shadow-[0_0_15px_rgba(0,229,133,0.1)]" : "border-gray-800"} relative overflow-hidden`}
-                          >
-                            {isReceiving && (
-                              <div
-                                className="absolute top-0 left-0 h-full bg-[#00E585]/10 z-0 transition-all duration-200"
-                                style={{ width: `${receiveProgress}%` }}
-                              ></div>
-                            )}
-                            <div className="relative z-10">
-                              <div className="flex justify-between items-center mb-1">
-                                <span
-                                  className={`text-sm font-medium truncate pr-4 ${isReceiving ? "text-white" : "text-gray-400"}`}
-                                >
-                                  {file.name}
-                                </span>
-                                <span className="text-xs text-gray-500 shrink-0">
-                                  {formatBytes(file.size)}
-                                </span>
-                              </div>
-                              {isReceiving ? (
-                                <div className="flex items-center gap-3 mt-3">
-                                  <div className="w-full bg-gray-800 rounded-full h-1.5">
-                                    <div
-                                      className="bg-[#00E585] h-1.5 rounded-full transition-all duration-200"
-                                      style={{ width: `${receiveProgress}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-xs font-mono text-[#00E585] shrink-0">
-                                    {receiveProgress}%
-                                  </span>
-                                  <button
-                                    onClick={cancelIncomingTransfer}
-                                    className="shrink-0 px-2 py-1 text-xs bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition"
-                                  >
-                                    Stop
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-600 mt-1 block">
-                                  Waiting in line...
-                                </span>
-                              )}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="space-y-4 flex-1 flex flex-col">
-                  <div className="flex justify-between items-end border-b border-gray-800 pb-2">
-                    <h3 className="text-md font-bold text-white">
-                      Received Inbox
-                    </h3>
-                    {receivedFiles.length > 0 && (
-                      <button
-                        onClick={handleDownloadAllSequential}
-                        disabled={isDownloadingAll}
-                        className="text-xs bg-[#00E585] text-black px-3 py-1.5 rounded-lg font-bold hover:bg-[#00C875] transition disabled:opacity-50"
-                      >
-                        {isDownloadingAll ? "Downloading..." : "Download All"}
-                      </button>
-                    )}
-                  </div>
-
-                  {receivedFiles.length === 0 ? (
-                    <div className="flex items-center justify-center h-[280px] bg-[#111315]/40 rounded-xl border border-dashed border-gray-800">
-                      <p className="text-sm text-gray-500 text-center">
-                        No files received yet.
-                        <br />
-                        Waiting for sender...
-                      </p>
-                    </div>
-                  ) : (
-                    <ul className="space-y-3 h-[280px] overflow-y-auto pr-2 custom-scrollbar">
-                      {receivedFiles.map((file, idx) => (
-                        <li
-                          key={idx}
-                          className="flex items-center justify-between p-3 bg-[#111315] rounded-xl border border-gray-800 hover:border-gray-700 transition"
-                        >
-                          <div className="flex flex-col truncate pr-4">
-                            <span className="text-sm font-medium text-white truncate">
-                              {file.name}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {formatBytes(file.size)}
-                            </span>
-                          </div>
-                          <a
-                            href={file.url}
-                            download={file.name}
-                            className="shrink-0 px-4 py-2 bg-[#00E585]/10 text-[#00E585] hover:bg-[#00E585] hover:text-black font-semibold text-xs rounded-lg transition-colors"
-                          >
-                            Save
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* RIGHT: Transfer Station (send) */}
+            <TransferStationPanel />
           </div>
+        )}
 
-          {!connectToId && (
-            <div className="p-6 md:p-8 flex flex-col space-y-6 bg-[#1a1c21] relative">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold text-white">
-                  Transfer Station
-                </h3>
-              </div>
-
-              <label className="flex flex-col items-center justify-center w-full min-h-[120px] border-2 border-dashed border-gray-700 rounded-xl cursor-pointer bg-[#111315] hover:bg-gray-800 transition p-6 group shrink-0">
-                <div className="flex flex-col items-center justify-center text-center">
-                  <div className="w-10 h-10 mb-3 rounded-full bg-gray-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <svg
-                      className="w-5 h-5 text-[#00E585]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    <span className="font-semibold text-[#00E585]">
-                      Click to browse
-                    </span>{" "}
-                    or drag files here
+        {/* ---- GUEST VIEW (has connectToId): connection status + BOTH send & receive ---- */}
+        {connectToId && (
+          <div className="flex flex-col divide-y divide-gray-800 min-h-[500px]">
+            {/* Connection status bar */}
+            <div className="p-4 bg-[#1e2025] flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-2 h-2 rounded-full ${connection ? "bg-[#00E585] animate-pulse" : "bg-red-500"}`}
+                ></div>
+                <div>
+                  <h2 className="text-white font-bold text-sm">
+                    {connection ? "Connected to Sender" : "Disconnected"}
+                  </h2>
+                  <p className="text-xs text-gray-500 font-mono">
+                    {connection ? "Remote Link Active" : "Tunnel Closed"}
                   </p>
                 </div>
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-              </label>
-
-              <div className="flex-1 flex flex-col space-y-4">
-                <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                  <h4 className="text-md font-bold text-gray-300">
-                    Outbox Queue
-                  </h4>
-                  <div className="space-x-3">
-                    {hasFinishedQueueItems && (
-                      <button
-                        onClick={removeDoneFiles}
-                        className="text-xs text-gray-500 hover:text-white transition"
-                      >
-                        Clear Done
-                      </button>
-                    )}
-                    {hasActiveQueueItems && (
-                      <button
-                        onClick={cancelAllFiles}
-                        className="text-xs text-red-500 hover:text-red-400 transition"
-                      >
-                        Cancel All
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {sendQueue.length === 0 ? (
-                  <div className="flex items-center justify-center h-[280px] bg-[#111315]/40 rounded-xl border border-dashed border-gray-800">
-                    <p className="text-sm text-gray-600 text-center">
-                      No files selected.
-                      <br />
-                      Queue up files while you wait.
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="space-y-3 h-[280px] overflow-y-auto custom-scrollbar pr-2">
-                    {sendQueue.map((item) => (
-                      <li
-                        key={item.id}
-                        className="p-3 bg-[#111315] rounded-xl border border-gray-800 relative overflow-hidden"
-                      >
-                        {item.status === "sending" && (
-                          <div
-                            className="absolute top-0 left-0 h-full bg-[#00E585]/10 z-0 transition-all duration-200"
-                            style={{ width: `${item.progress}%` }}
-                          ></div>
-                        )}
-                        <div className="flex items-center justify-between relative z-10">
-                          <div className="flex flex-col truncate pr-4">
-                            <span
-                              className={`text-sm font-medium truncate ${item.status === "cancelled" ? "text-gray-600 line-through" : "text-white"}`}
-                            >
-                              {item.file.name}
-                            </span>
-                            <span className="text-xs text-gray-500 flex gap-2">
-                              {formatBytes(item.file.size)}
-                              {item.status === "done" && (
-                                <span className="text-[#00E585]">✓ Sent</span>
-                              )}
-                              {item.status === "sending" && (
-                                <span className="text-[#00E585]">
-                                  {item.progress}%
-                                </span>
-                              )}
-                              {item.status === "cancelled" && (
-                                <span className="text-red-500">Cancelled</span>
-                              )}
-                              {item.status === "pending" && (
-                                <span className="text-gray-400">
-                                  Waiting...
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          {(item.status === "pending" ||
-                            item.status === "sending") && (
-                            <button
-                              onClick={() => cancelIndividualFile(item.id)}
-                              className="shrink-0 px-2 py-1 text-xs bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition"
-                            >
-                              Stop
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
-
-              <div className="pt-2 shrink-0">
+              {connection && (
                 <button
-                  onClick={startSendingQueue}
-                  disabled={
-                    !connection ||
-                    isSending ||
-                    !sendQueue.some((q) => q.status === "pending")
-                  }
-                  className="w-full py-4 px-4 bg-[#00E585] hover:bg-[#00C875] disabled:bg-[#111315] disabled:border disabled:border-gray-800 disabled:text-gray-500 text-black font-bold rounded-xl transition-all shadow-lg shadow-[#00E585]/10 disabled:shadow-none"
+                  onClick={disconnectFromPeer}
+                  className="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-lg transition-colors text-xs font-bold shadow-lg"
                 >
-                  {!connection
-                    ? "Waiting for Connection..."
-                    : isSending
-                      ? "Processing Queue..."
-                      : `Secure Send ${sendQueue.filter((q) => q.status === "pending").length > 0 ? `(${sendQueue.filter((q) => q.status === "pending").length})` : ""}`}
+                  Disconnect
                 </button>
-              </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Both panels side by side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-800">
+              {/* Send panel */}
+              <TransferStationPanel />
+              {/* Receive panel */}
+              <ReceiveInboxPanel />
+            </div>
+          </div>
+        )}
+
+        {/* ---- HOST also gets receive inbox below when connected ---- */}
+        {!connectToId && connection && (
+          <div className="border-t border-gray-800">
+            <ReceiveInboxPanel />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -903,7 +905,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0a0d14] text-gray-200 font-sans selection:bg-[#00E585] selection:text-black">
       <nav className="w-full flex items-center justify-between px-6 py-4  bg-[#0a0d14]/80 backdrop-blur-md fixed top-0 left-0 z-50">
-        {/* Update this section inside your <nav> tag */}
         <div className="flex items-center gap-3">
           <img
             src="/fast-drop/logo.png"
